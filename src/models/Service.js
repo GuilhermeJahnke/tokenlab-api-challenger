@@ -13,9 +13,6 @@ const ServiceSchema = new Schema(
 			required: true,
 			uppercase: false,
 		},
-		serviceSettings: {
-			type: Schema.ObjectId,
-		},
 		active: {
 			type: Boolean,
 			default: true,

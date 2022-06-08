@@ -16,7 +16,6 @@ const mongoose = require("mongoose");
 * @param {JSON} body
 * @param {String} body.title Título do Serviço
 * @param {String} body.description Descrição do Serviço
-* @param {Model} body.serviceSettings ID do limite de horas deste serviço
 * @param {Boolean} body.active ativa ou inativa uma sala
 * @returns {(Object | String )} code 200 (Success)
 * @returns {Object | String } code 401 (Unauthorized)
@@ -27,12 +26,12 @@ const mongoose = require("mongoose");
 
 const createServiceFunction = (req,res)=>{
 	const create = async ()=> {
-		const { title, description, serviceSettings } = req.body;
-		if(!title || !description || serviceSettings ){
+		const { title, description } = req.body;
+		if(!title || !description ){
 			return res.status(400).json({message: "Parâmetros Inválidos"});
 		}
 		const [err, service] = await tryCatch(
-			Service.create({ title, description, serviceSettings: mongoose.Types.ObjectId(serviceSettings) })
+			Service.create({ title, description })
 		) ;
 		if(err){
 			return res.status(500).json({err});
@@ -54,9 +53,7 @@ export const create = processMiddleware(createServiceFunction,{ schema: {}, meth
 */
 const getAllFunction = (req, res) =>{
 	const listAll = async ()=>{
-		const service = Service.find({"active": true}).populate([
-			{path:"serviceSettings", model: ServiceSettings},
-		]);
+		const service = Service.find({"active": true});
 		service.exec((err, data) => {
 			if (err) res.status(500).json(console.log(err));
 			else res.status(200).json(data);
@@ -72,7 +69,6 @@ export const getAll = processMiddleware(getAllFunction, {schema: {}, methods: ["
 * @param {JSON} body
 * @param {String} body.title Título do Serviço
 * @param {String} body.description Descrição do Serviço
-* @param {Model} body.serviceSettings ID do limite de horas deste serviço
 * @returns {(Object | String)} code 200 (Success)
 * @returns {(Object | String) } code 401 (Unauthorized)
 * @returns {(Object | Number)} code 500 (Internal Server Error)
@@ -81,8 +77,8 @@ export const getAll = processMiddleware(getAllFunction, {schema: {}, methods: ["
 */
 const editFunction = (req, res) =>{
 	const edit = async () => {
-		const { title, description, serviceSettings } = req.body;
-		const [err, sucess] = await tryCatch(Service.findOneAndUpdate({ _id: mongoose.Types.ObjectId(req.body._id) }, {title, description, serviceSettings}).exec());
+		const { title, description } = req.body;
+		const [err, sucess] = await tryCatch(Service.findOneAndUpdate({ _id: mongoose.Types.ObjectId(req.body._id) }, {title, description}).exec());
 		if (err) return res.status(500).json({ message: "Erro ao editar sala: ", err });
 		return res.status(200).json( sucess );
 	};

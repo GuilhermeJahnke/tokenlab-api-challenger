@@ -7,6 +7,7 @@ import  Mongoose  from "mongoose";
 import moment from "moment";
 import Events from "../models/Events";
 import ServiceSettings from "../models/ServiceSettings";
+import Service from "../models/Service";
 
 /**
 * @function tryCatch
@@ -196,5 +197,48 @@ export const isEmptySettings = (serviceID, date) => {
 			reject(errSettings);
 		}
 		resolve(locationsSettings.length > 0 ? false : true);
+	});
+};
+
+
+/**
+* @function verifyExistsSettings
+* @description [FUNCTION] - Verifica se possui algum limite ja definido para o serviço
+* @param {ID} serviceID ID da serviço
+* @returns {Boolean} Retorna true caso ele esteja vazio
+*/
+export const verifyExistsSettings = (serviceID) => {
+	return new Promise(async function (resolve, reject) {
+		const [errFind, finded] = await tryCatch(
+			ServiceSettings.findOne({$and:[
+				{"serviceRef": Mongoose.Types.ObjectId(serviceID)},
+				{ "active": true}
+			]})
+		);
+		if (errFind) {
+			reject(errFind);
+		}
+		resolve(finded ? true : false);
+	});
+};
+
+/**
+* @function existsService
+* @description [FUNCTION] - Verifica se o serviço existe
+* @param {ID} serviceID ID da serviço
+* @returns {Boolean} Retorna true caso ele esteja vazio
+*/
+export const existsService = (serviceID) => {
+	return new Promise(async function (resolve, reject) {
+		const [errFind, finded] = await tryCatch(
+			Service.findOne({$and:[
+				{"_id": Mongoose.Types.ObjectId(serviceID)},
+				{ "active": true}
+			]})
+		);
+		if (errFind) {
+			reject(errFind);
+		}
+		resolve(finded ? true : false);
 	});
 };

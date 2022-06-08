@@ -4,7 +4,7 @@
 */
 
 import processMiddleware from "../../http/processMiddleware";
-import { isEmptySettings, tryCatch } from "../../commons/utils";
+import { existsService, isEmptySettings, tryCatch, verifyExistsSettings } from "../../commons/utils";
 import ServiceSettings from "../../models/ServiceSettings";
 const mongoose = require("mongoose");
 
@@ -51,6 +51,14 @@ const createFunction = (req, res) => {
 		const { serviceRef, monday, tuesday, wednesday, thursday, friday, saturday, sunday } = req.body;
 		if (!serviceRef || !monday || !tuesday || !wednesday || !thursday || !friday || !saturday || !sunday ) {
 			return res.status(500).json({ message: "Preencha todos os campo" });
+		}
+		var settingsExists = await verifyExistsSettings(serviceRef);
+		if(settingsExists){
+			return res.status(409).json({message: "Conflito Detectado, limite já cadastrado!"});
+		}
+		var serviceExists = await existsService(serviceRef);
+		if(!serviceExists){
+			return res.status(404).json({message: "Serviço não encontrado!"});
 		}
 		const [err, preferences] = await tryCatch(
 			ServiceSettings.create({ serviceRef, monday, tuesday, wednesday, thursday, friday, saturday, sunday  })
