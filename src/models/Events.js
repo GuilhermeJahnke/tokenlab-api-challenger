@@ -13,14 +13,6 @@ const EventsSchema = new Schema(
 		userRef: {
 			type: Schema.ObjectId,
 		},
-		day: {
-			type: Date,
-			required: true
-		},
-		weekDay: {
-			type: String,
-			required: true
-		},
 		initAt: {
 			type: Date,
 			required: true

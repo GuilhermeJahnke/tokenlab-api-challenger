@@ -3,12 +3,11 @@
 * @description Modulo que gerencia os eventos
 */
 
-import { checkAvailable, tryCatch } from "../../commons/utils";
+import { checkAvailable, checkAvailableForEdit, existsService, tryCatch } from "../../commons/utils";
 import  Mongoose  from "mongoose";
 import processMiddleware from "../../http/processMiddleware";
 import moment from "moment";
 import Events from "../../models/Events";
-import ServiceSettings from "../../models/ServiceSettings";
 
 /**
 * @function Create
@@ -18,44 +17,43 @@ import ServiceSettings from "../../models/ServiceSettings";
 * @param {Date} body.endAt horário final
 * @param {String} body.description descrição do evento
 * @param {Model} body.serviceRef id do serviço
-* @param {Model} body.userRef id do serviço
-* @param {Model} body.date dia que deseja reservar
 * @returns {Object} code 200 (Success)
 * @returns {String} code 500 (Internal Server Error)
 */
 const createFunction = (req, res) =>{
 	const create = async ()=> {
-		const{ serviceRef, description, userRef, day, initAt, endAt } = req.body;
-		if(!initAt || !endAt || !serviceRef || !day || !description || !userRef ){
+		const{ serviceRef, description, initAt, endAt } = req.body;
+		if(!initAt || !endAt || !serviceRef || !description ){
 			return res.status(400).json({message: "Parâmetros Inválidos!"});
 		}
-		let formatDay = moment(day).format("YYYY-MM-DD");
-		let weekDay = moment(day).format("dddd");
-		const [errFind, findedEvents] = await tryCatch(
-			Events.findOne( {$and:[{"_id": Mongoose.Types.ObjectId(serviceRef)}, { "active":true}]}).exec()
-		);
-		if(errFind){
-			return res.status(500).json({errFind});
+
+		var findedService = await existsService(serviceRef);
+		if(!findedService){
+			return res.status(404).json({message: "Serviço não encontrado"});
 		}
-		if(findedEvents) {
-			const objectDate = {
-				initAt,
-				endAt
-			};
-			const thisAvailable = await checkAvailable(day, serviceRef, objectDate);
-			if(thisAvailable){
-				const [err, events] = await tryCatch(
-					Events.create({initAt, endAt, serviceRef, day: formatDay, weekDay })
-				);
-				if(err){
-					return res.status(500).json({err});
-				}
-				return res.status(200).json({events});
+
+		const initAtSlot = moment(initAt);
+		const endAtSlot = moment(endAt);
+
+		if(initAtSlot.isAfter(endAtSlot)){
+			return res.status(400).json({message: "O final do evento não pode ser antes do Inicio!"});
+		}
+		const objectDate = {
+			initAt,
+			endAt
+		};
+		const thisAvailable = await checkAvailable(serviceRef, objectDate);
+		if(thisAvailable){
+			const [err, events] = await tryCatch(
+				Events.create({initAt, endAt, serviceRef, description, userRef: Mongoose.Types.ObjectId(req.user._id) })
+			);
+			if(err){
+				return res.status(500).json({err});
 			}
-			return res.status(409).json({message: "Ocorreu um conflito ao tentar gerar uma reserva!"});
-		} else {
-			return res.status(401).json("Propriedade não encontrada");
+			return res.status(200).json({events});
 		}
+		return res.status(409).json({message: "Ocorreu um conflito ao tentar gerar um evento!"});
+
 	};
 	create();
 
@@ -89,20 +87,29 @@ export const getAll = processMiddleware(getAllFunction, {schema: {}, methods: ["
 * @param {String} body.description descrição do evento
 * @param {Model} body.serviceRef id do serviço
 * @param {Model} body.userRef id do serviço
-* @param {Model} body.date dia que deseja reservar
 * @returns {Object} code 200 (Success)
 * @returns {String} code 401 (unauthorized)
 * @returns {String} code 500 (Internal Server Error)
 */
 const editFunction = async (req, res) => {
-	const data = req.body;
+	const{ serviceRef, description, initAt, endAt, eventID } = req.body;
 	const update = async () =>{
 		let query = {
 			$and:[
 				{"active": true},
-				{ "_id": Mongoose.Types.ObjectId(req.body._id)}
+				{ "_id": Mongoose.Types.ObjectId(eventID)}
 			]};
-		const[err, sucess] = await tryCatch(Events.findOneAndUpdate(query, {...data}).exec());
+		const objectDate = {
+			initAt,
+			endAt
+		};
+		const thisAvailable = await checkAvailableForEdit(serviceRef, objectDate, eventID);
+
+		if(thisAvailable.length > 0){
+			return res.status(409).json({message: "Ocorreu um conflito ao tentar gerar um evento!", conflictEvents: thisAvailable });
+		}
+
+		const[err, sucess] = await tryCatch(Events.findOneAndUpdate(query, {description, initAt, endAt}).exec());
 		if(err) return res.status(500).json({message: "Erro ao editar", err});
 		else return res.status(200).json(sucess);
 	};
@@ -136,48 +143,76 @@ export const remove = processMiddleware(deleteFunction, {schema: {}, methods: ["
 
 
 /**
-* @function GetAvailableHours
-* @description [GET] - Retorna todos os horarios indisponiveis e o limite de horas
+* @function GetEventsForHours
+* @description [GET] - Retorna todos os eventos dentro do range
 * @param {JSON} body
 * @param {ID} body.serviceID ID do Serviço
-* @param {Date} body.date Dia para verificação
+* @param {Date} body.initAt horário inicial
+* @param {Date} body.endAt horário final
 * @returns {Object} code 200 (Success)
 * @returns {String} code 401 (unauthorized)
 * @returns {String} code 500 (Internal Server Error)
 */
-const getAvailableHoursFunction = async (req, res) => {
+const getEventsForHoursFunction = async (req, res) => {
 	const listAll = async () => {
-		const { date, serviceID } =req.body;
-		if(!date || !serviceID){
+		const { serviceID, initAt, endAt  } =req.body;
+		if(!initAt || !endAt || !serviceID){
 			return res.status(400).json({message: "Parâmetros Inválidos!"});
 		}
-		const [errSettings, locationsSettings] = await tryCatch(
-			ServiceSettings.findOne( {$and:[{"serviceRef": Mongoose.Types.ObjectId(serviceID)}, { "active": true}]}).exec()
-		);
-		if(errSettings){
-			return res.status(500).json({errSettings});
+		var findedService = await existsService(serviceID);
+		if(!findedService){
+			return res.status(404).json({message: "Serviço não encontrado"});
 		}
-		const daySelected = moment(date).add(4, "hours").format("dddd").toLowerCase();
-		const daySettings = locationsSettings[daySelected];
+		const initAtSlot = moment(initAt);
+		const endAtSlot = moment(endAt);
 		const [errFind, finded] = await tryCatch(
-			Events.find( {$and:[
-				{"serviceRef": Mongoose.Types.ObjectId(serviceID)},
-				{ "active": true},
-				{ "day":{  $eq: moment(date).format("YYYY-MM-DD") }},
-			]}).exec()
+			Events.aggregate([
+				{
+					$match: {
+						$and:[
+							{"serviceRef": Mongoose.Types.ObjectId(serviceID)},
+							{ "active": true},
+							{
+								$or:[
+									{
+										$and:[
+											{"initAt": {$lte: initAtSlot.toDate()}}, // começo enviado é maior que o começo do slot
+											{"endAt": {$gte: initAtSlot.toDate() }}, // começo enviado é menor que o fim do slot
+										]
+									},
+									{
+										$and:[
+											{"initAt": {$lte: endAtSlot.toDate() }}, // fim enviado é maior que o começo do slot
+											{"endAt": {$gte: endAtSlot.toDate() }}, // fim enviado é menor que o começo do slot
+										]
+									},
+									{
+										$and:[
+											{"initAt": {$gte: initAtSlot.toDate()}}, // começo enviado é menor que o começo do slot
+											{"endAt": {$lte: endAtSlot.toDate() }},  // fim enviado é maior que o começo do slot
+										]
+									},
+									{
+										$and:[
+											{"initAt": {$eq: initAtSlot.toDate()}}, // começo enviado é menor que o começo do slot
+											{"endAt": {$eq: endAtSlot.toDate() }},  // fim enviado é maior que o começo do slot
+										]
+									},
+								]
+							}
+						]
+					}
+				},
+
+
+			]).exec()
 		);
 		if(errFind){
-			return res.status(500).json({errFind});
+			return res.status(500).json(errFind);
 		}
 
-		// retorna as indisponiveis e o limite de horas
-		// todos os que não estiverem indisponiveis no limite de horas,
-		// é passivel de locação
-		return res.status(200).json({
-			hoursSettings: daySettings,
-			hoursUnavailable: finded
-		});
+		return res.status(200).json(finded);
 	};
 	listAll();
 };
-export const getAvailableHours = processMiddleware(getAvailableHoursFunction, {schema: {}, methods: ["POST"], filters: []});
+export const getEventsForHours = processMiddleware(getEventsForHoursFunction, {schema: {}, methods: ["POST"], filters: []});

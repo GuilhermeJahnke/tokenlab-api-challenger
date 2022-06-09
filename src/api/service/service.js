@@ -6,7 +6,6 @@
 import processMiddleware from "../../http/processMiddleware";
 import { tryCatch } from "../../commons/utils";
 import Service from "../../models/Service";
-import ServiceSettings from "../../models/ServiceSettings";
 const mongoose = require("mongoose");
 
 
