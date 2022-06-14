@@ -5,6 +5,11 @@ const EventsSchema = new Schema(
 	{
 		serviceRef: {
 			type: Schema.ObjectId,
+			required: true
+		},
+		title: {
+			type: String,
+			required: true
 		},
 		description: {
 			type: String,
@@ -12,6 +17,7 @@ const EventsSchema = new Schema(
 		},
 		userRef: {
 			type: Schema.ObjectId,
+			required: true
 		},
 		initAt: {
 			type: Date,

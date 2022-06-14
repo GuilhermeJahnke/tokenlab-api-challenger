@@ -24,7 +24,6 @@ exports.getList = (req, res) => {
 
 		});
 	} catch (err) {
-		console.log(`erro: ${err}`);
 		res.status(500).send("Erro: consulte o terminal para detalhes");
 	}
 };

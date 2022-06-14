@@ -33,7 +33,6 @@ app.all("/api/*", function (req, res, next) {
 });
 app.use("/api/*", function (req, res, next) { customLogs(req, res, next); });
 
-console.log(`Worker ${process.pid} started`);
 console.log("db ==> ", `mongodb://${databaseConfig.db_host}${databaseConfig.db_name}`);
 mongoose.connect(`mongodb://${databaseConfig.db_host}${databaseConfig.db_name}`); //local
 // mongoose.connect(`mongodb://db:27017/${databaseConfig.db_name}`); //docker-compose

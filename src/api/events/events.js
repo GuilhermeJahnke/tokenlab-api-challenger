@@ -22,8 +22,8 @@ import Events from "../../models/Events";
 */
 const createFunction = (req, res) =>{
 	const create = async ()=> {
-		const{ serviceRef, description, initAt, endAt } = req.body;
-		if(!initAt || !endAt || !serviceRef || !description ){
+		const{ serviceRef, description, initAt, endAt, title } = req.body;
+		if(!initAt || !endAt || !serviceRef || !description || !title ){
 			return res.status(400).json({message: "Parâmetros Inválidos!"});
 		}
 
@@ -45,7 +45,7 @@ const createFunction = (req, res) =>{
 		const thisAvailable = await checkAvailable(serviceRef, objectDate);
 		if(thisAvailable){
 			const [err, events] = await tryCatch(
-				Events.create({initAt, endAt, serviceRef, description, userRef: Mongoose.Types.ObjectId(req.user._id) })
+				Events.create({initAt, endAt, serviceRef, description, title, userRef: Mongoose.Types.ObjectId(req.user._id) })
 			);
 			if(err){
 				return res.status(500).json({err});
@@ -71,7 +71,7 @@ const getAllFunction = async (req, res) => {
 	const listAll = async () => {
 		const events = Events.find({"active": true});
 		events.exec((err, data) =>{
-			if(err) return res.status(500).json(console.log(err));
+			if(err) return res.status(500).json(err);
 			else return res.status(200).json(data);
 		});
 	};
@@ -92,7 +92,7 @@ export const getAll = processMiddleware(getAllFunction, {schema: {}, methods: ["
 * @returns {String} code 500 (Internal Server Error)
 */
 const editFunction = async (req, res) => {
-	const{ serviceRef, description, initAt, endAt, eventID } = req.body;
+	const{ serviceRef, description, initAt, endAt, eventID, title } = req.body;
 	const update = async () =>{
 		let query = {
 			$and:[
@@ -108,8 +108,7 @@ const editFunction = async (req, res) => {
 		if(thisAvailable.length > 0){
 			return res.status(409).json({message: "Ocorreu um conflito ao tentar gerar um evento!", conflictEvents: thisAvailable });
 		}
-
-		const[err, sucess] = await tryCatch(Events.findOneAndUpdate(query, {description, initAt, endAt}).exec());
+		const[err, sucess] = await tryCatch(Events.findOneAndUpdate(query, {description, initAt, endAt, title}).exec());
 		if(err) return res.status(500).json({message: "Erro ao editar", err});
 		else return res.status(200).json(sucess);
 	};

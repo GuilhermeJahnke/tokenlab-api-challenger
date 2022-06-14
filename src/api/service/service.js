@@ -54,7 +54,7 @@ const getAllFunction = (req, res) =>{
 	const listAll = async ()=>{
 		const service = Service.find({"active": true});
 		service.exec((err, data) => {
-			if (err) res.status(500).json(console.log(err));
+			if (err) res.status(500).json(err);
 			else res.status(200).json(data);
 		});
 	};

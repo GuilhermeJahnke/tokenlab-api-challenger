@@ -55,5 +55,3 @@ exports.auth = requireAuth;
 exports.user = (reqParams, atributes, req) =>
 	authService.roleAuthorization("user", req);
 
-// exports.admin = (reqParams, atributes, req) =>
-//   authService.roleAuthorization("admin", req);
